@@ -86,3 +86,4 @@ print(f"SQLite Source ID: {sqlite3.sqlite_version}")
 ```
 
 Paste the output into the **Environment Details** section of your issue template.
+

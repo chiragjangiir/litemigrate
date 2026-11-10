@@ -32,3 +32,4 @@ assignees: ''
 - **OS**: [e.g., Windows, macOS, Linux]
 - **Python / SQLite Version**: [e.g., Python 3.12, SQLite 3.45]
 - **LiteMigrate Version**: 0.1.0-alpha.1
+

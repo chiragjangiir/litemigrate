@@ -179,3 +179,4 @@ Since this is a disposable test, simply remove the test files:
 rm -f ecommerce_test.db* *.sql *.json
 deactivate
 ```
+

@@ -43,3 +43,4 @@ litemigrate validate test.db --migration-file migration.sql
 ```text
 <!-- Paste sanitized log or terminal output here -->
 ```
+

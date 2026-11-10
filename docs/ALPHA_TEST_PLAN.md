@@ -65,3 +65,4 @@ python3 -m unittest discover -v -s tests -t . -p "test_*.py"
 mypy src tests/alpha_matrix
 ruff check src tests
 ```
+
