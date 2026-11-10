@@ -49,7 +49,11 @@ def canonical_cell_bytes(val: Any) -> bytes:
 def get_table_identity_info(
     conn: sqlite3.Connection, table_name: str
 ) -> tuple[bool, tuple[str, ...]]:
-    """Determine whether table has standard `rowid` or requires `WITHOUT ROWID` primary key columns."""
+    """Determine whether table has accessible physical `rowid` or requires primary key columns.
+
+    Handles edge cases where user-defined columns shadow 'rowid', '_rowid_', and/or 'oid',
+    and WITHOUT ROWID tables with single or composite primary keys.
+    """
     escaped = escape_identifier(table_name)
     # Check if table exists
     exists = conn.execute(
@@ -60,26 +64,46 @@ def get_table_identity_info(
             f"Table '{table_name}' does not exist in sqlite_master."
         )
 
-    has_rowid = False
-    try:
-        conn.execute(f"SELECT _rowid_ FROM {escaped} LIMIT 0;")
-        has_rowid = True
-    except sqlite3.OperationalError:
-        has_rowid = False
-
-    if has_rowid:
-        return True, ()
-
-    # Inspect table_info for declared PRIMARY KEY columns
+    # Inspect table_info for user column names and declared PRIMARY KEY columns
     info_rows = conn.execute(f"PRAGMA table_info({escaped});").fetchall()
     # columns: (cid, name, type, notnull, dflt_value, pk)
-    pk_cols = sorted([r for r in info_rows if r[5] > 0], key=lambda r: r[5])
-    if not pk_cols:
+    user_cols_lower = {str(r[1]).lower() for r in info_rows}
+    pk_rows = sorted([r for r in info_rows if r[5] > 0], key=lambda r: r[5])
+    declared_pk_cols = tuple(str(r[1]) for r in pk_rows)
+
+    # Check candidates for unshadowed physical rowid access
+    # SQLite rowid aliases: _rowid_, rowid, oid
+    rowid_alias: str | None = None
+    for candidate in ("_rowid_", "rowid", "oid"):
+        if candidate.lower() not in user_cols_lower:
+            try:
+                conn.execute(f"SELECT {candidate} FROM {escaped} LIMIT 0;")
+                rowid_alias = candidate
+                break
+            except sqlite3.OperationalError:
+                # Table is WITHOUT ROWID or does not allow this alias
+                pass
+
+    if rowid_alias is not None:
+        # Return True and the specific unshadowed alias used to access the physical rowid
+        return True, (rowid_alias,)
+
+    # If rowid cannot be accessed (either WITHOUT ROWID or all aliases shadowed by user columns),
+    # fallback to declared PRIMARY KEY
+    if declared_pk_cols:
+        return False, declared_pk_cols
+
+    # No accessible physical rowid and no declared primary key
+    if all(alias in user_cols_lower for alias in ("rowid", "_rowid_", "oid")):
         raise UnsupportedTableStructureError(
-            f"Table '{table_name}' has no stable row identity (neither rowid nor declared PRIMARY KEY). "
+            f"Table '{table_name}' shadows 'rowid', '_rowid_', and 'oid' with user columns and lacks a PRIMARY KEY. "
             "Cannot deterministically verify table data."
         )
-    return False, tuple(r[1] for r in pk_cols)
+
+    raise UnsupportedTableStructureError(
+        f"Table '{table_name}' has no stable row identity (neither accessible rowid nor declared PRIMARY KEY). "
+        "Cannot deterministically verify table data."
+    )
 
 
 def fingerprint_table_and_columns(
@@ -101,7 +125,8 @@ def fingerprint_table_and_columns(
     data_proj = ", ".join(escaped_data_cols)
 
     if has_rowid:
-        query = f'SELECT _rowid_, {data_proj} FROM {escaped_table} ORDER BY _rowid_ ASC;'
+        rowid_col = pk_cols[0] if pk_cols else "_rowid_"
+        query = f'SELECT {rowid_col}, {data_proj} FROM {escaped_table} ORDER BY {rowid_col} ASC;'
         pk_count = 1
         is_rowid_table = True
     else:

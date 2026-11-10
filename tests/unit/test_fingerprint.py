@@ -94,12 +94,77 @@ class TestFingerprint(unittest.TestCase):
 
     def test_table_without_rowid_or_pk_raises_error(self) -> None:
         """If a table cannot provide rowid or primary key, raise UnsupportedTableStructureError."""
-        # Standard SQLite disallows WITHOUT ROWID without PK, but let's test helper directly
         mock_conn = sqlite3.connect(":memory:")
-        # In memory empty
         with self.assertRaises(UnsupportedTableStructureError):
             get_table_identity_info(mock_conn, "nonexistent")
         mock_conn.close()
+
+    def test_table_with_user_columns_shadowing_rowid_aliases(self) -> None:
+        """Verify handling when user columns shadow rowid, _rowid_, and/or oid."""
+        conn = sqlite3.connect(":memory:")
+
+        # 1. User column named 'rowid'
+        conn.execute("CREATE TABLE t_rowid (rowid TEXT, data TEXT);")
+        conn.execute("INSERT INTO t_rowid VALUES ('user_val', 'content');")
+        has_rowid, info = get_table_identity_info(conn, "t_rowid")
+        self.assertTrue(has_rowid)
+        self.assertEqual(info, ("_rowid_",))
+        t_hash, col_hashes = fingerprint_table_and_columns(conn, "t_rowid", ("rowid", "data"))
+        self.assertIn("rowid", col_hashes)
+        self.assertIn("data", col_hashes)
+
+        # 2. User column named '_rowid_'
+        conn.execute("CREATE TABLE t_under_rowid (_rowid_ TEXT, data TEXT);")
+        conn.execute("INSERT INTO t_under_rowid VALUES ('custom_id', 'content');")
+        has_rowid, info = get_table_identity_info(conn, "t_under_rowid")
+        self.assertTrue(has_rowid)
+        self.assertEqual(info, ("rowid",))
+
+        # 3. User columns named 'rowid' AND '_rowid_' -> falls back to 'oid'
+        conn.execute("CREATE TABLE t_both (rowid TEXT, _rowid_ TEXT, data TEXT);")
+        conn.execute("INSERT INTO t_both VALUES ('u1', 'u2', 'content');")
+        has_rowid, info = get_table_identity_info(conn, "t_both")
+        self.assertTrue(has_rowid)
+        self.assertEqual(info, ("oid",))
+
+        # 4. User columns named 'rowid', '_rowid_', and 'oid' with PRIMARY KEY
+        conn.execute(
+            "CREATE TABLE t_all_shadowed (rowid TEXT, _rowid_ TEXT, oid TEXT, id INT PRIMARY KEY);"
+        )
+        conn.execute("INSERT INTO t_all_shadowed VALUES ('r', '_r', 'o', 100);")
+        has_rowid, info = get_table_identity_info(conn, "t_all_shadowed")
+        self.assertFalse(has_rowid)
+        self.assertEqual(info, ("id",))
+
+        # 5. User columns named 'rowid', '_rowid_', and 'oid' WITHOUT PRIMARY KEY
+        conn.execute("CREATE TABLE t_unusable (rowid TEXT, _rowid_ TEXT, oid TEXT, data TEXT);")
+        with self.assertRaises(UnsupportedTableStructureError):
+            get_table_identity_info(conn, "t_unusable")
+
+        conn.close()
+
+    def test_empty_table_fingerprinting(self) -> None:
+        """Verify empty table produces deterministic hashes without errors."""
+        conn = sqlite3.connect(":memory:")
+        conn.execute("CREATE TABLE empty_t (id INTEGER PRIMARY KEY, note TEXT);")
+        t_hash1, col_hashes1 = fingerprint_table_and_columns(conn, "empty_t", ("id", "note"))
+        t_hash2, col_hashes2 = fingerprint_table_and_columns(conn, "empty_t", ("id", "note"))
+        self.assertEqual(t_hash1, t_hash2)
+        self.assertEqual(col_hashes1, col_hashes2)
+        self.assertIn("id", col_hashes1)
+        self.assertIn("note", col_hashes1)
+        conn.close()
+
+    def test_null_and_duplicate_values_determinism(self) -> None:
+        """Verify tables with NULLs and identical duplicate values hash deterministically."""
+        conn = sqlite3.connect(":memory:")
+        conn.execute("CREATE TABLE dup_t (id INTEGER PRIMARY KEY, val TEXT);")
+        conn.execute("INSERT INTO dup_t VALUES (1, NULL), (2, NULL), (3, 'dup'), (4, 'dup');")
+        t_hash1, col_hashes1 = fingerprint_table_and_columns(conn, dup_t := "dup_t", ("id", "val"))
+        t_hash2, col_hashes2 = fingerprint_table_and_columns(conn, "dup_t", ("id", "val"))
+        self.assertEqual(t_hash1, t_hash2)
+        self.assertEqual(col_hashes1, col_hashes2)
+        conn.close()
 
 
 if __name__ == "__main__":

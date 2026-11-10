@@ -25,6 +25,7 @@ from litemigrate.models import (
     AuditReport,
     CloneStrategy,
     DatabaseInspectionReport,
+    TableSnapshot,
     ValidationVerdict,
 )
 from litemigrate.policy import MigrationPolicy
@@ -115,7 +116,7 @@ class LiteMigrateEngine:
 
         # Check for callable migration rejection (Gap A)
         if callable(migration_sql):
-            empty_snap: dict = {}
+            empty_snap: dict[str, TableSnapshot] = {}
             return AuditReport(
                 verdict=ValidationVerdict.BLOCKED_UNSUPPORTED_MIGRATION_TYPE,
                 details=(
@@ -166,7 +167,7 @@ class LiteMigrateEngine:
                 )
                 shadow_path = clone_result.shadow_path
             except sqlite3.OperationalError as exc:
-                empty_snap = {}
+                empty_lock_snap: dict[str, TableSnapshot] = {}
                 return AuditReport(
                     verdict=ValidationVerdict.BLOCKED_CONCURRENT_LOCK,
                     details=(f"Shadow database creation blocked by database lock: {exc}",),
@@ -177,7 +178,7 @@ class LiteMigrateEngine:
                     promoted_to_source=False,
                     backup_path=None,
                     clone_result=None,
-                    tables_before=empty_snap,
+                    tables_before=empty_lock_snap,
                     tables_after=empty_snap,
                     dropped_tables=(),
                     mutated_tables=(),
@@ -346,11 +347,15 @@ class LiteMigrateEngine:
             with open(migration, "r", encoding="utf-8") as f:
                 return f.read()
         if isinstance(migration, str):
-            # Check if it's an existing file path
-            candidate = Path(migration)
-            if candidate.is_file():
-                with open(candidate, "r", encoding="utf-8") as f:
-                    return f.read()
+            # Check if it's an existing file path, avoiding stat() on long SQL strings
+            if "\n" not in migration and ";" not in migration and len(migration) < 1024:
+                try:
+                    candidate = Path(migration)
+                    if candidate.is_file():
+                        with open(candidate, "r", encoding="utf-8") as f:
+                            return f.read()
+                except OSError:
+                    pass
             return migration
         if isinstance(migration, Sequence):
             return "\n".join(migration)
