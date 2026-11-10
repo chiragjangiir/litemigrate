@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Mandatory `PRAGMA trusted_schema = OFF;` verification across all database connections.
   - Strict symlink traversal rejection (`is_symlink()` and `O_NOFOLLOW`).
   - Private workspace isolation (`0o700` directories) and strict file mode enforcement (`0o600`).
+  - Robust handling of user columns shadowing physical SQLite rowid aliases (`rowid`, `_rowid_`, `oid`).
+  - Safe multi-line SQL path resolution preventing OS `stat()` string overflows (`ENAMETOOLONG`).
 - **Command-Line Interface (CLI):**
   - `litemigrate inspect`: Inspect schema, journal mode, table counts, and database integrity.
   - `litemigrate validate`: Test migration against an isolated shadow copy without modifying source.
@@ -28,4 +30,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `litemigrate report`: Display and format previously generated JSON audit reports.
 - **Documentation & Verification:**
   - Comprehensive documentation: architecture, safety model, concurrency protocol, limitations, and benchmark methodology.
-  - Automated test suite with 59 passing tests across unit, integration, and adversarial suites.
+  - Automated test suite with 62 passing tests across unit, integration, and adversarial suites.
+  - GitHub Actions CI matrix running across Ubuntu Linux and macOS Darwin on Python 3.9, 3.10, 3.11, and 3.12.

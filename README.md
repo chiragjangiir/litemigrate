@@ -2,35 +2,42 @@
 
 > **Safer SQLite migrations through shadow verification.**
 
-LiteMigrate is an open-source, local-first safety utility for SQLite database migrations. It verifies migrations in an isolated shadow copy before touching production, checking for accidental row losses, silent data mutations, cascade wipes, broken foreign keys, and structural corruption.
-
 [![CI Tests](https://github.com/chiragjangiir/litemigrate/actions/workflows/tests.yml/badge.svg)](https://github.com/chiragjangiir/litemigrate/actions/workflows/tests.yml)
+[![Lint & Typecheck](https://github.com/chiragjangiir/litemigrate/actions/workflows/lint.yml/badge.svg)](https://github.com/chiragjangiir/litemigrate/actions/workflows/lint.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Status: Alpha](https://img.shields.io/badge/Status-Alpha_RC1-orange.svg)](PROJECT_STATUS.md)
+[![Status: Alpha](https://img.shields.io/badge/Status-Alpha_RC1-orange.svg)](RELEASE_READINESS.md)
 
 ---
 
-## The Problem
-
-SQLite is widely used in production web backends, edge nodes, mobile applications, and embedded systems. However, schema migrations in SQLite are prone to silent, irreversible failure modes:
-
-1. **Foreign Key Cascade Wipes ([ariga/atlas #3317](https://github.com/ariga/atlas/issues/3317)):** When rebuilding a table with `foreign_keys=ON`, issuing `DROP TABLE parent` triggers `ON DELETE CASCADE` and wipes every child row in the database without any warning or syntax error.
-2. **Column Alteration Blind Spots:** Adding a column while inadvertently mutating or zeroing out existing columns in the same migration script often passes standard migration tools unnoticed.
-3. **Lost Updates Under Concurrency:** Applying a migration to a live database while concurrent transactions commit can lead to lost updates or corrupted WAL frames if the migration tool does not enforce strict writer locks and compare-and-swap (CAS) verification.
-4. **Trigger and View Silencing:** Dropping or renaming a table can leave surviving triggers or views referencing invalid identifiers, which crash queries later during runtime.
-
-Most migration tools report success as long as the SQL engine executes without an exception. **LiteMigrate checks whether your data actually survived.**
+> [!WARNING]
+> **LiteMigrate is currently an experimental Alpha release (`v0.1.0-alpha.1`).**
+> It is designed to assist developers and teams in catching destructive migration bugs early. **Never test or run migrations on the sole copy of important production data.** Always maintain verified, independent off-site backups before applying schema changes to any live database.
 
 ---
 
-## How It Works
+## What LiteMigrate Does
 
-LiteMigrate validates migrations through a 6-stage verification lifecycle:
+LiteMigrate is a local-first, zero-cloud CLI tool and Python library for SQLite migration safety. It allows developers to test database migrations against an isolated, copy-on-write shadow copy of their real database, verify that all data and relational invariants survived, and promote the migration to the live database only after all safety checks pass.
+
+### The Problem LiteMigrate Solves
+
+SQLite is increasingly used for mission-critical applications: embedded devices, mobile apps, local-first architectures, and production web backends (via WAL mode). However, schema migrations in SQLite are prone to silent, irreversible failures that traditional migration runners ignore:
+
+1. **Foreign Key Cascade Wipes ([ariga/atlas #3317](https://github.com/ariga/atlas/issues/3317)):** When rebuilding a table with foreign keys active, executing `DROP TABLE parent` cascades and silently deletes every child record across related tables without warning or syntax errors.
+2. **Silent Column Data Mutations:** Adding a column while accidentally resetting, truncating, or altering existing column data often executes successfully in SQL runners while silently corrupting rows.
+3. **Lost Updates Under Live Concurrency:** Applying a migration to an active SQLite database while external processes are committing transactions can lead to lost updates or corrupted state if writer leases and compare-and-swap (CAS) barriers are not enforced.
+4. **Invalidated Triggers and Views:** Dropping or renaming a table can leave surviving triggers or views broken, causing application queries to crash later in production.
+
+Most migration tools report success as long as SQLite executes the SQL without syntax errors. **LiteMigrate verifies that your data actually survived.**
+
+---
+
+## Core Lifecycle
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │ 1. Security & Pre-flight Inspection                                    │
-│    • Rejects symlinks on source, shadow, lock, and WAL files.          │
+│    • Rejects symlinks on source, shadow, and backup paths.             │
 │    • Allocates an isolated 0o700 temporary workspace.                  │
 │    • Enforces PRAGMA trusted_schema = OFF on all connections.          │
 └───────────────────────────────────┬────────────────────────────────────┘
@@ -39,19 +46,19 @@ LiteMigrate validates migrations through a 6-stage verification lifecycle:
 │ 2. Consistent Shadow Database Creation                                 │
 │    • Active WAL: Bounded libsqlite3 Backup API with deadline.          │
 │    • Quiescent DB: macOS APFS clonefile(2) or Linux FICLONE ioctl.     │
-│    • Mode 0o600 enforced across all copy-on-write copies.              │
+│    • Private 0o600 permissions enforced on shadow database.            │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
 │ 3. Baseline Snapshot (from isolated shadow copy)                       │
-│    • Canonical logical digest of sqlite_master and table contents.     │
+│    • Streaming row-identity-bound SHA-256 fingerprinting.              │
 │    • Table row counts, content hashes, and per-column digests.         │
-│    • Non-table schema cataloging (indexes, triggers, views).           │
+│    • Schema inventory (tables, indexes, triggers, views).              │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
 │ 4. Transactional Shadow Migration Execution                            │
-│    • Splits SQL into complete statements via SQLite's C lexer.         │
+│    • Splits SQL into complete statements via SQLite lexer.             │
 │    • Executes inside explicit BEGIN ... COMMIT on shadow copy.         │
 │    • Source database remains 100% untouched.                           │
 └───────────────────────────────────┬────────────────────────────────────┘
@@ -59,17 +66,17 @@ LiteMigrate validates migrations through a 6-stage verification lifecycle:
 ┌────────────────────────────────────────────────────────────────────────┐
 │ 5. Multi-Invariant Shadow Audit                                        │
 │    • PRAGMA foreign_key_check run before integrity checks.             │
-│    • PRAGMA integrity_check verifies structural B-tree health.         │
-│    • Checks for unexpected drops, row losses, and shared-column edits. │
-│    • Verifies surviving views parse and execute.                       │
+│    • PRAGMA integrity_check verifies B-tree structural health.         │
+│    • Checks for unexpected drops, row losses, and column mutations.   │
+│    • Verifies surviving views and triggers parse and execute.          │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
 │ 6. Zero-TOCTOU Atomic Promotion (apply --confirm)                      │
-│    • Acquires advisory flock on <source>.litemigrate.lock.             │
+│    • Acquires advisory lock on <source>.litemigrate.lock.              │
 │    • Creates 0o600 pre-promotion rollback backup.                      │
-│    • Acquires BEGIN IMMEDIATE on source connection.                    │
-│    • In-transaction CAS: source live digest == shadow baseline digest. │
+│    • Acquires BEGIN IMMEDIATE writer lease on source connection.       │
+│    • In-transaction CAS: re-verifies live source matches baseline.     │
 │    • Replays SQL inside held lock, verifies FKs, and COMMITs.          │
 └────────────────────────────────────────────────────────────────────────┘
 ```
@@ -78,75 +85,159 @@ LiteMigrate validates migrations through a 6-stage verification lifecycle:
 
 ## Installation
 
-LiteMigrate is local-first with **zero mandatory external dependencies** outside Python's standard library and the platform's SQLite C library (`libsqlite3`).
+LiteMigrate is local-first with **zero required external dependencies** outside Python's standard library and the platform's SQLite C library (`libsqlite3`).
 
+### From Local Project or Repository:
 ```bash
-git clone https://github.com/chiragjangir/litemigrate.git
+git clone https://github.com/chiragjangiir/litemigrate.git
 cd litemigrate
 python3 -m pip install -e .
 ```
 
-Requires **Python 3.9+** and **SQLite 3.35+**.
+### From Wheel:
+```bash
+python3 -m pip install dist/litemigrate-0.1.0a1-py3-none-any.whl
+```
+
+**Requirements:**
+- Python `>= 3.9`
+- SQLite `>= 3.35.0` (bundled with Python on most modern platforms)
 
 ---
 
-## Quick-Start Example
+## 60-Second Disposable Quick-Start
 
+You can test LiteMigrate right now on disposable databases without touching real project data.
+
+### Step 1: Create a Disposable Database
 ```bash
-# 1. Inspect the database schema and integrity
-litemigrate inspect --db ./app.db
+mkdir -p /tmp/litemigrate_demo && cd /tmp/litemigrate_demo
 
-# 2. Test your migration against an isolated shadow database
-litemigrate validate --db ./app.db --migration ./migrations/001_add_index.sql
-
-# 3. Apply the migration safely with explicit confirmation
-litemigrate apply --db ./app.db --migration ./migrations/001_add_index.sql --confirm
+python3 -c "
+import sqlite3
+conn = sqlite3.connect('demo.db')
+conn.execute('CREATE TABLE parent (id INTEGER PRIMARY KEY, name TEXT);')
+conn.execute('CREATE TABLE child (id INTEGER PRIMARY KEY, parent_id INT, FOREIGN KEY (parent_id) REFERENCES parent(id) ON DELETE CASCADE);')
+conn.execute('INSERT INTO parent VALUES (1, \"Alpha\"), (2, \"Beta\");')
+conn.execute('INSERT INTO child VALUES (10, 1), (20, 2);')
+conn.commit()
+conn.close()
+"
 ```
+
+### Step 2: Inspect Database Health
+```bash
+litemigrate inspect --db demo.db
+```
+*Output: Displays database size, SQLite version, journal mode, tables (`parent`, `child`), and integrity status without printing table contents.*
+
+### Step 3: Validate a Safe Migration (Column Addition)
+```bash
+echo "ALTER TABLE parent ADD COLUMN description TEXT DEFAULT 'none';" > safe_migration.sql
+
+litemigrate validate --db demo.db --migration safe_migration.sql
+```
+*Result: **`Verdict: PASSED`**. LiteMigrate cloned `demo.db` to an isolated shadow copy, verified the migration, audited all invariants, and left `demo.db` 100% untouched.*
+
+### Step 4: Validate a Dangerous Migration (Cascade Wipe Reproduction)
+Now test what happens when a migration attempts an unsafe table drop:
+```bash
+cat << 'EOF' > dangerous_migration.sql
+DROP TABLE parent;
+CREATE TABLE parent (id INTEGER PRIMARY KEY, name TEXT, extra TEXT);
+EOF
+
+litemigrate validate --db demo.db --migration dangerous_migration.sql
+```
+*Result: **`Verdict: BLOCKED_UNEXPECTED_ROW_LOSS`** / **`BLOCKED_UNEXPECTED_TABLE_DROP`**. LiteMigrate catches that dropping `parent` wiped rows in `child` and blocked the migration before it could ever touch your source database!*
+
+### Step 5: Apply a Validated Migration Safely
+```bash
+litemigrate apply --db demo.db --migration safe_migration.sql --confirm
+```
+*Result: LiteMigrate validates on shadow, acquires an exclusive writer lease, creates a `demo.db.pre_migrate_<timestamp>.bak` recovery backup, re-verifies source integrity via CAS, and atomically commits the change.*
 
 ---
 
 ## CLI Reference
 
 ### `litemigrate inspect`
-Displays database path, SQLite version, journal mode, size, table count, schema object count, and basic database integrity status. Never displays sensitive row contents.
-
+Inspects database schema, journal mode, foreign key status, table count, and integrity metadata without displaying sensitive row contents.
 ```bash
-litemigrate inspect --db ./app.db [--json]
+litemigrate inspect --db <path-to-db> [--json]
 ```
 
 ### `litemigrate validate`
-Creates an isolated shadow database, runs the migration on the shadow copy, audits all invariants, and outputs a structured audit report. **Never modifies the source database.**
-
+Clones an isolated shadow copy using copy-on-write reflink (APFS on macOS, FICLONE on Linux) or the SQLite Backup API. Executes the migration inside the shadow database and runs a multi-invariant audit.
 ```bash
-litemigrate validate --db ./app.db --migration ./001_migration.sql [--policy ./policy.json] [--json]
+litemigrate validate --db <path-to-db> --migration <path-to-sql> [--policy <path-to-policy.json>] [--output report.json] [--json]
 ```
+*Guarantees: **The source database is never modified during validation.***
 
 ### `litemigrate apply`
-Validates on the shadow database first, requires explicit user confirmation, creates a recoverable `0o600` backup, verifies the source has not changed concurrently under an exclusive writer lease, and atomically commits the migration.
-
+Validates the migration on the shadow copy first. Requires explicit confirmation (`--confirm` flag or interactive prompt). Creates a timestamped pre-promotion backup file (`.bak`). Acquires an exclusive writer lock (`BEGIN IMMEDIATE`) on the source database, checks the CAS baseline digest to ensure no concurrent writes occurred, applies the migration, and commits atomically.
 ```bash
-litemigrate apply --db ./app.db --migration ./001_migration.sql --confirm [--policy ./policy.json] [--json]
+litemigrate apply --db <path-to-db> --migration <path-to-sql> --confirm [--policy <path-to-policy.json>] [--output report.json] [--json]
 ```
 
 ### `litemigrate report`
-Reads and formats a previously generated JSON audit report.
-
+Reads and formats previously generated audit JSON reports into terminal summaries or formatted JSON.
 ```bash
-litemigrate report --input ./audit-report.json [--json]
+litemigrate report --input report.json [--json]
 ```
 
 ---
 
-## Safety Model & Policy
+## What Happens When Validation Fails?
 
-By default, LiteMigrate operates under strict conservative defaults:
-- **No table drops** permitted without declaration in `allowed_dropped_tables`.
-- **No row losses** permitted without declaration in `allowed_row_loss_tables`.
-- **No column or row data mutations** permitted without declaration in `allowed_mutated_tables`.
-- **No dropped views, triggers, or indexes** permitted without explicit allowlisting.
+When a migration violates any safety invariant:
+1. **The Source Database Remains 100% Untouched:** All mutations occurred inside an isolated temporary directory.
+2. **The Shadow Database is Cleanly Discarded:** Temporary databases and lock files are deterministically cleaned up.
+3. **A Clear Audit Report is Emitted:** LiteMigrate identifies the exact table, column, or foreign key violation causing the failure.
+4. **A Non-Zero Exit Code is Returned:** Allowing CI pipelines and deployment scripts to immediately halt.
 
-When performing intentional deletions or alterations, pass an explicit JSON policy:
+### Exit Codes
 
+| Exit Code | Verdict | Meaning |
+| :---: | :--- | :--- |
+| **`0`** | `PASSED` | All safety invariants satisfied; migration applied or validated. |
+| **`1`** | `BLOCKED_*` | Invariant violation (unexpected row loss, drop, mutation, or FK violation). |
+| **`2`** | `BLOCKED_CONCURRENT_*` | Concurrent writer detected during promotion or lock timeout exceeded. |
+| **`3`** | `Security Error` | Symlink detected, permission invalid, or unsafe path. |
+| **`4`** | `Aborted / Unconfirmed` | Interactive confirmation declined or `--confirm` missing in non-interactive environment. |
+| **`5`** | `Execution Error` | Migration SQL syntax error or SQLite execution exception. |
+
+---
+
+## Backup, Concurrency & Recovery
+
+### Pre-Promotion Backup
+Whenever `litemigrate apply` executes, a consistent backup is created prior to promotion:
+```
+<database_path>.pre_migrate_<unix_nanoseconds>.bak
+```
+- Permissions are strictly set to `0o600` (readable only by the database owner).
+- To manually restore if an external deployment issue arises:
+  ```bash
+  cp app.db.pre_migrate_1794308039305443000.bak app.db
+  ```
+
+### Concurrency Protection & CAS Barrier
+LiteMigrate distinguishes between two types of concurrent processes:
+- **SQLite-Cooperating Writers:** Any process connecting via SQLite that writes to the database will increment SQLite change counters. LiteMigrate re-computes the source digest inside its held `BEGIN IMMEDIATE` lock. If any concurrent transaction committed after shadow cloning, promotion aborts with `BLOCKED_SOURCE_MODIFIED_CONCURRENTLY` to avoid lost updates.
+- **Non-SQLite Rogue Writers:** If an external process writes raw bytes directly into the `.db` file descriptor (bypassing SQLite's file-locking protocol), filesystem corruption cannot be prevented by SQLite VFS locks.
+
+---
+
+## Safety Policy Configuration
+
+By default, LiteMigrate denies all destructive changes:
+- Table drops are blocked.
+- Row deletions are blocked.
+- Column data mutations on existing columns are blocked.
+- Dropping views, triggers, or indexes is blocked.
+
+When a schema migration intentionally removes or archives data, provide a JSON policy:
 ```json
 {
   "allowed_dropped_tables": ["legacy_session_log"],
@@ -159,81 +250,43 @@ When performing intentional deletions or alterations, pass an explicit JSON poli
   "busy_timeout_ms": 3000
 }
 ```
-
-### Verdict Exit Codes
-
-| Exit Code | Verdict Category | Description |
-| :---: | :--- | :--- |
-| **`0`** | `PASSED` | Validation and/or application completed successfully. |
-| **`1`** | `BLOCKED_*` | Migration blocked by safety audit (unexpected drop, row loss, mutation, FK violation). |
-| **`2`** | `BLOCKED_CONCURRENT_*` | Concurrent writer conflict detected or lock deadline exceeded. |
-| **`3`** | `Security Error` | Symlink detected, permissions invalid, or path safety failure. |
-| **`4`** | `Aborted / Unconfirmed` | Apply command ran without `--confirm` in non-interactive shell. |
-| **`5`** | `Execution Error` | Migration SQL execution exception or file error. |
+Pass with `--policy ./policy.json`.
 
 ---
 
-## What LiteMigrate Verifies (And What It Cannot Prove)
+## Empirically Tested Environments
 
-### LiteMigrate Verifies:
-- **Foreign Key Consistency:** `PRAGMA foreign_key_check` is executed on the shadow copy after migration and re-verified on the source before commit.
-- **Data Preservation:** Unintended row losses and silent modifications to existing columns are detected via row-identity-bound streaming SHA-256 hashes.
-- **Concurrent Writer Isolation:** External transactions committed by cooperating SQLite processes while validation is running are detected via an in-transaction CAS check, rolling back promotion to preserve external writes.
-- **B-Tree Structural Health:** `PRAGMA integrity_check` and `PRAGMA quick_check` run on the shadow database.
+The automated test suite runs across an 8-platform matrix in GitHub Actions on every push:
 
-### What LiteMigrate Cannot Prove:
-- **Non-SQLite Rogue Writers:** If an external process writes raw bytes directly into the `.db` file descriptor bypassing SQLite's locking protocol, OS-level filesystem corruption cannot be prevented.
-- **Application Query Semantics:** LiteMigrate verifies relational data and schema integrity; it cannot verify that your application's ORM queries remain logically compatible with the new schema.
-- **Arbitrary Python Callables:** Public API strictly supports SQL script migrations. Python callables are excluded because they cannot be guaranteed atomic under SQLite transaction boundaries.
+| Platform | Architecture | Python Versions | Filesystem / Shadow Clone |
+| :--- | :--- | :--- | :--- |
+| **macOS Darwin (14 / 15 / 26)** | Apple Silicon arm64 | 3.9, 3.10, 3.11, 3.12 | APFS `clonefile(2)` copy-on-write (~1.2 ms clone) |
+| **Ubuntu Linux (22.04 / 24.04)** | x86_64 | 3.9, 3.10, 3.11, 3.12 | `ioctl(FICLONE)` on XFS/Btrfs; SQLite Backup API on ext4 |
+
+### Tested SQLite Versions
+- SQLite `3.37.2` through `3.53.4`
+- Tested with both `WAL` (Write-Ahead Logging) and `DELETE` rollback journal modes.
 
 ---
 
-## Supported Environments & Benchmarks
+## Known Limitations
 
-| Platform | Filesystem | Shadow Clone Mechanism | Verification Status |
-| :--- | :--- | :--- | :--- |
-| **macOS (Darwin)** | Apple APFS | `clonefile(2)` via Darwin libc | **Verified on Apple Silicon APFS** |
-| **Linux (x86_64 / arm64)** | XFS / Btrfs | `ioctl(..., FICLONE)` | **Verified on Linux 6.x XFS** |
-| **Universal POSIX** | Ext4, ZFS, tmpfs, etc. | `sqlite3_backup_*` C API | **Verified Universal Fallback** |
-
-### Empirically Measured Benchmarks
-
-Measured on macOS Darwin (Apple Silicon, APFS volume) using `benchmark.py`:
-
-| Database Scale | Clone Strategy | Clone Duration | Isolated Peak RSS |
-| :--- | :--- | :--- | :--- |
-| **5.0 MB** | `APFS_CLONEFILE` (CoW) | **1.21 ms** | **26.05 MB** |
-| **5.0 MB** | `SQLITE_BACKUP_API` | 18.99 ms | 37.27 MB |
-| **25.0 MB** | `APFS_CLONEFILE` (CoW) | **1.18 ms** (~111x faster) | **25.91 MB** |
-| **25.0 MB** | `SQLITE_BACKUP_API` | 131.37 ms | 61.88 MB |
+- **SQLite Only:** LiteMigrate is intentionally engineered for SQLite. PostgreSQL, MySQL, DuckDB, and LibSQL are not supported.
+- **SQL Scripts Only:** Python callables are explicitly rejected by design; callables cannot be rolled back atomically under SQLite transaction boundaries.
+- **Stable Row Identity Required:** Standard rowid tables and `WITHOUT ROWID` tables with primary keys are supported. Tables shadowing `rowid`, `_rowid_`, and `oid` simultaneously without a primary key cannot be deterministically verified and are rejected.
+- For complete operational boundaries, see [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md).
 
 ---
 
 ## Running the Test Suite
 
-LiteMigrate includes a comprehensive 59-test automated regression suite covering unit, integration, and adversarial concurrency scenarios:
-
 ```bash
-# Run complete test suite
+# Run all 62 unit, integration, and adversarial tests
 python3 -m unittest discover -v -s tests -t . -p "test_*.py"
 
 # Run performance benchmarks
 python3 benchmark.py
 ```
-
----
-
-## Project Status & Roadmap
-
-LiteMigrate is currently **Alpha (Release Candidate 1)**.
-
-- [x] Phase 1: Problem identification & empirical verification.
-- [x] Phase 2: Copy-on-write clone engines (APFS and Linux FICLONE).
-- [x] Phase 3: Adversarial audit and remediation of 14 core defects.
-- [x] Phase 4: Resolution of callable migration and canonical row identity gaps.
-- [x] Phase 5: Python package structure and command-line interface.
-- [ ] Phase 6: Automated schema reverse-engineering & visual migration diffs.
-- [ ] Phase 7: GitHub Action for CI/CD pre-merge migration validation.
 
 ---
 
