@@ -109,7 +109,7 @@ LiteMigrate — Open source at github.com/chiragjangiir/litemigrate
 
 [00:25 - 00:40]
 # SUBTITLE: 512MB database cloned in 0.41 milliseconds using filesystem copy-on-write.
-# NARRATION: "Zero extra disk space allocated until pages are modified. Zero risk to production."
+# NARRATION: "Zero extra disk space allocated until pages are modified. The source database remains completely untouched during validation."
 
 [00:40 - 00:45]
 # CALL TO ACTION:

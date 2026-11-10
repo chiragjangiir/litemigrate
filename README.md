@@ -72,7 +72,7 @@ Most migration tools report success as long as SQLite executes the SQL without s
 └───────────────────────────────────┬────────────────────────────────────┘
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│ 6. Zero-TOCTOU Atomic Promotion (apply --confirm)                      │
+│ 6. CAS Atomic Promotion (apply --confirm)                              │
 │    • Acquires advisory lock on <source>.litemigrate.lock.              │
 │    • Creates 0o600 pre-promotion rollback backup.                      │
 │    • Acquires BEGIN IMMEDIATE writer lease on source connection.       │

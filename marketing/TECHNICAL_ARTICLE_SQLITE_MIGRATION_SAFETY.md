@@ -101,7 +101,7 @@ Standard migration runners have no concept of Compare-And-Swap (CAS) validation.
 
 ## The Solution: Multi-Invariant Shadow Verification
 
-To guarantee that a migration is genuinely safe, a migration tool must do more than run SQL. It must verify **behavioral invariants**:
+To verify that a migration satisfies essential database invariants before touching real data, a migration tool must do more than run SQL. It must verify **behavioral invariants**:
 
 | Invariant | How LiteMigrate Verifies It |
 |:---|:---|

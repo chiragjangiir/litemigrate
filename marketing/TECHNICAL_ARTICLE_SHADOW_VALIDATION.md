@@ -130,7 +130,7 @@ Step 3: CAS Check Under Exclusive Lock
                 COMMIT;
 ```
 
-By verifying the live source state inside `BEGIN IMMEDIATE` before committing changes, LiteMigrate guarantees that concurrent transactions committed during the validation window are never clobbered.
+By verifying the live source state inside `BEGIN IMMEDIATE` before committing changes, LiteMigrate prevents concurrent transactions committed during the validation window from being silently overwritten.
 
 ---
 

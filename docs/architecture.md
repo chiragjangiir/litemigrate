@@ -40,7 +40,7 @@ LiteMigrate is designed around an uncompromising principle: **no unvalidated mig
 └───────────────────────────────────┬────────────────────────────────────┘
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│ 6. Zero-TOCTOU Atomic Promotion (Optional upon confirmation)           │
+│ 6. CAS Atomic Promotion via BEGIN IMMEDIATE (Optional upon confirm)   │
 │    • Acquire advisory POSIX flock on <db>.litemigrate.lock.            │
 │    • Create 0o600 pre-promotion rollback backup.                       │
 │    • Acquire BEGIN IMMEDIATE on source connection.                     │
