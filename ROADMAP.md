@@ -108,3 +108,4 @@ Horizon 3 (Advanced Safety):   Deep AST Analysis
 | **Audit Report Markdown/HTML** | Horizon 2 | Medium | Medium | Neutral | **Planned for v0.2.0-beta.1** |
 | **GitHub Actions CI Integration** | Horizon 2 | Very High | Medium | Positive | **Planned for v0.2.0-beta.1** |
 | **Schema & DDL AST Analysis** | Horizon 3 | Medium | High | Neutral | **Under Research** |
+

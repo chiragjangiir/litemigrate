@@ -100,3 +100,4 @@ litemigrate apply --db ./app.db --migration ./migrations/001_add_index.sql --con
 - **Report an Issue**: [GitHub Issue Templates](https://github.com/chiragjangiir/litemigrate/issues/new/choose)
 
 *Note: LiteMigrate is not yet published to PyPI. Do not use this Alpha release on production databases without independent backups.*
+

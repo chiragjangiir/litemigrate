@@ -97,3 +97,4 @@ for a in assets:
     print(f"• {a[\"name\"]}: {a[\"download_count\"]} downloads")
 '
 ```
+

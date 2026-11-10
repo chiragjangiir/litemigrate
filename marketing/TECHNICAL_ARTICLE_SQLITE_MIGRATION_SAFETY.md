@@ -127,3 +127,4 @@ This is why we built **LiteMigrate**: to bring deterministic, local-first safety
 
 - **GitHub**: [https://github.com/chiragjangiir/litemigrate](https://github.com/chiragjangiir/litemigrate)  
 - **Current Release**: `v0.1.0-alpha.1` (Experimental Alpha)
+

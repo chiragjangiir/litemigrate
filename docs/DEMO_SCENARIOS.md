@@ -468,3 +468,4 @@ litemigrate report --input audit_report.json
 
 ### 5. Explanation
 The complete audit state is captured as structured JSON. This report can be preserved as an auditable compliance artifact or ingested by CI/CD pipelines to fail deployments if the verdict is anything other than `passed`.
+

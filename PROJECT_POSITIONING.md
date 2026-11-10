@@ -101,3 +101,4 @@ In SQLite, this question is dangerously insufficient:
 | **Concurrency Detection (CAS)** | ❌ Lock error or clobber | ❌ Lock error | ❌ N/A | ✅ **`data_version` CAS Check** |
 | **Automated Pre-Promotion Backup** | ❌ Manual | ❌ Manual | ❌ N/A | ✅ **Automated Timestamped `.bak`** |
 | **Cloud Independence & Privacy** | ✅ Local | ✅ Local | ⚠️ Often cloud-hosted | ✅ **100% Local-First** |
+

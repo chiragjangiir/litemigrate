@@ -102,3 +102,4 @@ All CLI commands adhere to strict output conventions:
   - `1`: Validation blocked by safety invariant violation or execution error.
   - `2`: CLI argument or syntax error.
 - **No Mystery Writes**: When validation fails or runs in inspection mode, the banner explicitly asserts: `Source DB Untouched: Yes`.
+
