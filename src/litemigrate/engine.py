@@ -179,7 +179,7 @@ class LiteMigrateEngine:
                     backup_path=None,
                     clone_result=None,
                     tables_before=empty_lock_snap,
-                    tables_after=empty_snap,
+                    tables_after=empty_lock_snap,
                     dropped_tables=(),
                     mutated_tables=(),
                     row_loss_tables=(),
