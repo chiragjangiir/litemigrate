@@ -1,0 +1,10 @@
+{
+  "allowed_dropped_tables": ["legacy_audit_log"],
+  "allowed_row_loss_tables": ["legacy_audit_log"],
+  "allowed_mutated_tables": [],
+  "allowed_dropped_views": [],
+  "allowed_dropped_triggers": [],
+  "allowed_dropped_indexes": [],
+  "disable_foreign_keys_during_migration": true,
+  "busy_timeout_ms": 3000
+}
