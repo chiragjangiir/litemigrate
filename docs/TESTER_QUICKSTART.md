@@ -76,11 +76,11 @@ print("Created disposable database: ecommerce_test.db")
 ### A. Inspect Schema & Data Footprint
 Inspect tables, row counts, indexes, foreign keys, and pragmas:
 ```bash
-litemigrate inspect ecommerce_test.db
+litemigrate inspect --db ecommerce_test.db
 ```
 To output machine-readable JSON:
 ```bash
-litemigrate inspect ecommerce_test.db --json
+litemigrate inspect --db ecommerce_test.db --json
 ```
 
 ---
@@ -99,7 +99,7 @@ EOF
 
 Run `validate`. **This runs on an isolated shadow clone and leaves `ecommerce_test.db` completely untouched:**
 ```bash
-litemigrate validate ecommerce_test.db --migration-file v1_add_loyalty.sql
+litemigrate validate --db ecommerce_test.db --migration v1_add_loyalty.sql --output audit_report.json
 ```
 *Note that the exit code is `0`, the shadow clone execution succeeded, and foreign key / integrity checks passed.*
 
@@ -108,20 +108,20 @@ litemigrate validate ecommerce_test.db --migration-file v1_add_loyalty.sql
 ### C. Apply Migration with Atomic Backup
 To apply changes to the live database, run `apply` with `--confirm`:
 ```bash
-litemigrate apply ecommerce_test.db --migration-file v1_add_loyalty.sql --confirm
+litemigrate apply --db ecommerce_test.db --migration v1_add_loyalty.sql --confirm
 ```
 **What happens under the hood:**
 1. Shadow clone is created and validated.
-2. A pre-migration backup (`ecommerce_test.db.bak`) is created atomically using the SQLite Backup API.
+2. A pre-migration backup (`ecommerce_test.db.pre_migrate_<timestamp>.bak`) is created atomically using the SQLite Backup API.
 3. Concurrency check (CAS) ensures no external process modified the source while validation took place.
 4. Changes are committed to `ecommerce_test.db`.
 
 ---
 
-### D. Export an Audit Report
-Generate a JSON audit report of the migration:
+### D. Export and View an Audit Report
+Format and inspect the JSON audit report:
 ```bash
-litemigrate report ecommerce_test.db --output-file migration_audit.json
+litemigrate report --input audit_report.json
 ```
 
 ---
@@ -140,11 +140,11 @@ EOF
 
 Run validate:
 ```bash
-litemigrate validate ecommerce_test.db --migration-file invalid_fk.sql
+litemigrate validate --db ecommerce_test.db --migration invalid_fk.sql
 ```
 **Result:**
-- Validation aborts with exit code `2`.
-- `FOREIGN_KEY_VIOLATION` is reported.
+- Validation aborts with exit code `1`.
+- `BLOCKED_FOREIGN_KEY_VIOLATION` is reported.
 - `ecommerce_test.db` remains 100% untouched.
 
 ---
@@ -159,15 +159,22 @@ EOF
 
 Run validate without flags:
 ```bash
-litemigrate validate ecommerce_test.db --migration-file drop_orders.sql
+litemigrate validate --db ecommerce_test.db --migration drop_orders.sql
 ```
 **Result:**
-- Rejection: Table drop detected while default policy forbids destructive changes.
-- Exit code `2`.
+- Rejection: Unexpected dropped table `orders` was not declared in policy.
+- Verdict: `BLOCKED_UNEXPECTED_TABLE_DROP` (Exit code `1`).
 
 To explicitly permit it:
 ```bash
-litemigrate validate ecommerce_test.db --migration-file drop_orders.sql --allow-destructive
+cat << 'EOF' > allow_drop.json
+{
+  "allowed_dropped_tables": ["orders"],
+  "allowed_row_loss_tables": ["orders"]
+}
+EOF
+
+litemigrate validate --db ecommerce_test.db --migration drop_orders.sql --policy allow_drop.json
 ```
 
 ---

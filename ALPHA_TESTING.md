@@ -108,7 +108,7 @@ con.close()
 
 ### Step 2: Inspect Database Structure
 ```bash
-litemigrate inspect disposable_test.db
+litemigrate inspect --db disposable_test.db
 ```
 
 ### Step 3: Test a Safe Migration (Validation Only)
@@ -120,15 +120,15 @@ ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1;
 
 Validate without touching the source database:
 ```bash
-litemigrate validate disposable_test.db --migration-file add_index.sql
+litemigrate validate --db disposable_test.db --migration add_index.sql
 ```
 *Observe the exit code (0), shadow execution metrics, and schema diff.*
 
 ### Step 4: Apply the Migration with Confirmation
 ```bash
-litemigrate apply disposable_test.db --migration-file add_index.sql --confirm
+litemigrate apply --db disposable_test.db --migration add_index.sql --confirm
 ```
-*Observe that an automated pre-migration backup (`disposable_test.db.bak`) is created, CAS check passes, and migration is applied.*
+*Observe that an automated pre-migration backup (`disposable_test.db.pre_migrate_<timestamp>.bak`) is created, CAS check passes, and migration is applied.*
 
 ### Step 5: Test a Destructive Migration
 Create `drop_table.sql`:
@@ -138,9 +138,21 @@ DROP TABLE users;
 
 Run validate:
 ```bash
-litemigrate validate disposable_test.db --migration-file drop_table.sql
+litemigrate validate --db disposable_test.db --migration drop_table.sql
 ```
-*Observe that LiteMigrate rejects this destructive change with exit code 2 because `--allow-destructive` was not specified.*
+*Observe that LiteMigrate rejects this destructive change with exit code 1 (`BLOCKED_UNEXPECTED_TABLE_DROP`) because it was not declared in a migration policy.*
+
+To explicitly permit it:
+```bash
+cat << 'EOF' > policy.json
+{
+  "allowed_dropped_tables": ["users"],
+  "allowed_row_loss_tables": ["users"]
+}
+EOF
+
+litemigrate validate --db disposable_test.db --migration drop_table.sql --policy policy.json
+```
 
 ---
 
