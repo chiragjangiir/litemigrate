@@ -1,22 +1,25 @@
 # LiteMigrate — Demonstration Recording Plan & Technical Screencast Guide
 
-**Current Asset Status**: As of `v0.1.0-alpha.1`, **no finished video (`.mp4`), screencast (`.cast`), or animated GIF currently exists in the repository.**
+**Asset Status**: The official demonstration assets have been successfully recorded and compiled using `vhs` (0.12.1) and `ffmpeg` (9.0.2).
 
-This document provides the definitive, turn-key recording specification to produce the official demonstration recording (e.g. for `vhs`, `asciinema`, or terminal screencasting).
+### Generated Assets (`marketing/assets/`):
+- **`litemigrate_demo.mp4`**: 1.2 MB | 79.48 seconds | SHA-256: `29403f0dfafc68555ce664dffa59985b2bd0474409a8c7dd4e7c1370f59cc654`
+- **`litemigrate_demo.gif`**: 2.3 MB | 79.48 seconds | SHA-256: `688712fc60668fecf4d5f02da09f8bcd915620325ff469ac8bab7a4342ea06ec`
+- **`record_demo.tape`**: 2.0 KB | Complete reproducible VHS script
 
 ---
 
 ## Technical Recording Specifications
 
-- **Tool Recommendation**: [VHS (Charm)](https://github.com/charmbracelet/vhs) or [Asciinema](https://asciinema.org/).
+- **Recording Engine**: [VHS (Charm)](https://github.com/charmbracelet/vhs) + `ffmpeg`.
 - **Output Artifacts**:
-  - `docs/assets/litemigrate_demo.gif` (for GitHub README header, max 4MB).
-  - `docs/assets/litemigrate_demo.mp4` (high-res 1080p 60fps for social/Hacker News).
-- **Terminal Resolution**: 1200 × 750 px (approx. 90 columns × 26 rows).
-- **Font**: JetBrains Mono, 15pt.
-- **Color Theme**: Dracula or Catppuccin Mocha.
-- **Typing Speed**: Realistic human simulation (40ms jitter).
-- **Total Duration**: Approximately 75 seconds.
+  - `marketing/assets/litemigrate_demo.gif` (for GitHub README header, 2.3 MB).
+  - `marketing/assets/litemigrate_demo.mp4` (high-res 1080p 30fps for social/Hacker News, 1.2 MB).
+- **Terminal Resolution**: 1100 × 680 px.
+- **Font**: JetBrains Mono, 14pt.
+- **Color Theme**: Catppuccin Mocha.
+- **Typing Speed**: Realistic human simulation.
+- **Total Duration**: 79.48 seconds.
 
 ---
 
@@ -225,3 +228,4 @@ Type "litemigrate validate --db store.db --migration 001_add_inventory.sql" Slee
 Type "litemigrate validate --db store.db --migration bad_migration.sql" Sleep 500ms Enter Sleep 3s
 Type "litemigrate apply --db store.db --migration 001_add_inventory.sql --confirm" Sleep 500ms Enter Sleep 4s
 ```
+

@@ -43,10 +43,10 @@ Instead of running migrations on the live database, LiteMigrate validates them a
    - PRAGMA integrity_check to detect physical page corruption.
    - Streaming row fingerprinting (using IEEE-754 signed zero discrimination and rowid aliasing safety) to ensure existing data wasn't silently altered or dropped.
    - Policy enforcement: table drops and row losses are blocked by default unless declared in an explicit policy.json.
-3. Concurrency-Safe Promotion: When you run `litemigrate apply --confirm`, it acquires an exclusive writer lock (BEGIN IMMEDIATE), checks PRAGMA data_version to ensure no concurrent process wrote to the database while validation was running (Compare-And-Swap), creates an atomic timestamped backup (.bak), and applies the changes.
+3. Concurrency-Safe Promotion: When you run `litemigrate apply --confirm`, it acquires SQLite's write reservation (`BEGIN IMMEDIATE`), checks `PRAGMA data_version` and schema cookies to ensure no concurrent SQLite process wrote to the database while validation was running (Compare-And-Swap), creates an atomic timestamped backup (.bak), and applies the changes.
 
 Status:
-This is an experimental Alpha (v0.1.0-alpha.1). It is 100% local-first: zero cloud dependencies, zero telemetry, and zero network calls. We have an 80-test automated suite running across Python 3.9–3.12 on macOS and Linux, but we have not published to PyPI yet.
+This is an experimental Alpha (v0.1.0-alpha.1). It is local-first: zero cloud services, zero telemetry, and the tool itself makes zero network calls. We have an 80-test automated suite running across Python 3.9–3.12 on macOS and Linux, but we have not published to PyPI yet.
 
 GitHub: https://github.com/chiragjangiir/litemigrate
 Alpha Release: https://github.com/chiragjangiir/litemigrate/releases/tag/v0.1.0-alpha.1
@@ -95,9 +95,9 @@ The migration executes strictly in the shadow copy:
 
 3. Concurrency-Safe Promotion (CAS):
 To prevent Time-of-Check to Time-of-Use (TOCTOU) issues during promotion:
-- Acquires `BEGIN IMMEDIATE` on the source database.
-- Checks `PRAGMA data_version` and the schema cookie against baseline values.
-- If concurrent writers committed data during validation, it aborts immediately without touching the live database.
+- Acquires SQLite's write reservation (`BEGIN IMMEDIATE`) on the source database.
+- Checks `PRAGMA data_version` and the schema cookie against baseline values to verify cooperating SQLite processes have not committed changes.
+- If concurrent writers committed data during validation, it aborts immediately without touching the live database. (Note: this detects cooperating SQLite engine transactions; raw file overwrites bypassing SQLite are outside engine scope).
 - If unchanged, it creates an atomic `.bak` file and applies the migration.
 
 ### A 30-Second Example
@@ -124,3 +124,4 @@ Release Assets: https://github.com/chiragjangiir/litemigrate/releases/tag/v0.1.0
 
 I welcome adversarial feedback, edge cases, and code reviews on our concurrency lease logic and row fingerprinting implementation.
 ```
+

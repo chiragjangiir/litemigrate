@@ -115,9 +115,9 @@ Step 1: On Shadow Creation
         Record: Baseline Source Digest & PRAGMA data_version
 
 Step 2: On `litemigrate apply --confirm`
-        Acquire Exclusive Writer Lock: BEGIN IMMEDIATE;
+        Acquire Write Reservation: BEGIN IMMEDIATE;
         
-Step 3: CAS Check Under Exclusive Lock
+Step 3: CAS Check Under Write Reservation
         Check: Live Source data_version == Baseline data_version?
         Check: Live Source Digest == Baseline Source Digest?
         

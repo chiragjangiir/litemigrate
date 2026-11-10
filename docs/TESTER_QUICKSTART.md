@@ -145,7 +145,7 @@ litemigrate validate --db ecommerce_test.db --migration invalid_fk.sql
 **Result:**
 - Validation aborts with exit code `1`.
 - `BLOCKED_FOREIGN_KEY_VIOLATION` is reported.
-- `ecommerce_test.db` remains 100% untouched.
+- `ecommerce_test.db` remains untouched.
 
 ---
 

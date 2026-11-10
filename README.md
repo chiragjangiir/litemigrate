@@ -75,7 +75,7 @@ Most migration tools report success as long as SQLite executes the SQL without s
 │ 6. CAS Atomic Promotion (apply --confirm)                              │
 │    • Acquires advisory lock on <source>.litemigrate.lock.              │
 │    • Creates 0o600 pre-promotion rollback backup.                      │
-│    • Acquires BEGIN IMMEDIATE writer lease on source connection.       │
+│    • Acquires SQLite write reservation (BEGIN IMMEDIATE) on source.   │
 │    • In-transaction CAS: re-verifies live source matches baseline.     │
 │    • Replays SQL inside held lock, verifies FKs, and COMMITs.          │
 └────────────────────────────────────────────────────────────────────────┘
@@ -155,7 +155,7 @@ litemigrate validate --db demo.db --migration dangerous_migration.sql
 ```bash
 litemigrate apply --db demo.db --migration safe_migration.sql --confirm
 ```
-*Result: LiteMigrate validates on shadow, acquires an exclusive writer lease, creates a `demo.db.pre_migrate_<timestamp>.bak` recovery backup, re-verifies source integrity via CAS, and atomically commits the change.*
+*Result: LiteMigrate validates on shadow, acquires SQLite write reservation (`BEGIN IMMEDIATE`), creates a `demo.db.pre_migrate_<timestamp>.bak` recovery backup, re-verifies source integrity via CAS, and atomically commits the change.*
 
 ---
 
@@ -175,7 +175,7 @@ litemigrate validate --db <path-to-db> --migration <path-to-sql> [--policy <path
 *Guarantees: **The source database is never modified during validation.***
 
 ### `litemigrate apply`
-Validates the migration on the shadow copy first. Requires explicit confirmation (`--confirm` flag or interactive prompt). Creates a timestamped pre-promotion backup file (`.bak`). Acquires an exclusive writer lock (`BEGIN IMMEDIATE`) on the source database, checks the CAS baseline digest to ensure no concurrent writes occurred, applies the migration, and commits atomically.
+Validates the migration on the shadow copy first. Requires explicit confirmation (`--confirm` flag or interactive prompt). Creates a timestamped pre-promotion backup file (`.bak`). Acquires SQLite's write reservation (`BEGIN IMMEDIATE`) on the source database, checks the CAS baseline digest to ensure no concurrent writes occurred, applies the migration, and commits atomically.
 ```bash
 litemigrate apply --db <path-to-db> --migration <path-to-sql> --confirm [--policy <path-to-policy.json>] [--output report.json] [--json]
 ```
@@ -191,7 +191,7 @@ litemigrate report --input report.json [--json]
 ## What Happens When Validation Fails?
 
 When a migration violates any safety invariant:
-1. **The Source Database Remains 100% Untouched:** All mutations occurred inside an isolated temporary directory.
+1. **The Source Database Remains Untouched:** All mutations occurred inside an isolated temporary directory.
 2. **The Shadow Database is Cleanly Discarded:** Temporary databases and lock files are deterministically cleaned up.
 3. **A Clear Audit Report is Emitted:** LiteMigrate identifies the exact table, column, or foreign key violation causing the failure.
 4. **A Non-Zero Exit Code is Returned:** Allowing CI pipelines and deployment scripts to immediately halt.

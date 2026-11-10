@@ -43,7 +43,7 @@ LiteMigrate is designed around an uncompromising principle: **no unvalidated mig
 │ 6. CAS Atomic Promotion via BEGIN IMMEDIATE (Optional upon confirm)   │
 │    • Acquire advisory POSIX flock on <db>.litemigrate.lock.            │
 │    • Create 0o600 pre-promotion rollback backup.                       │
-│    • Acquire BEGIN IMMEDIATE on source connection.                     │
+│    • Acquire SQLite write reservation (BEGIN IMMEDIATE) on source.     │
 │    • In-transaction CAS check: source live digest == baseline digest.  │
 │    • Replay SQL statements inside held lock, verify FKs, and COMMIT.   │
 │    • Clean up shadow workspace deterministically.                      │

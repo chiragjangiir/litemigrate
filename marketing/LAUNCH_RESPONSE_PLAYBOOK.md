@@ -41,7 +41,7 @@ This document prepares the core engineering and maintainer team for community in
 
 ### Q4: "How does LiteMigrate handle concurrency if another process writes during validation?"
 > **Response**:  
-> "Before applying a migration (`litemigrate apply --confirm`), LiteMigrate acquires an exclusive writer lock (`BEGIN IMMEDIATE`) on the source database. Under this lock, it re-reads `PRAGMA data_version` and the schema cookie. If another process committed data while validation was running, LiteMigrate's Compare-And-Swap (CAS) check detects the change and immediately aborts promotion without touching the source database."
+> "Before applying a migration (`litemigrate apply --confirm`), LiteMigrate acquires SQLite's write reservation (`BEGIN IMMEDIATE`) on the source database. Under this reservation, it re-reads `PRAGMA data_version` and the schema cookie. If another process committed data while validation was running, LiteMigrate's Compare-And-Swap (CAS) check detects the change and immediately aborts promotion without touching the source database."
 
 ---
 
@@ -78,3 +78,4 @@ This document prepares the core engineering and maintainer team for community in
 ### When Someone Requests a Feature:
 1. Acknowledge the use case and check if it is already covered in [`ROADMAP.md`](../ROADMAP.md).
 2. Point them to the roadmap and invite them to contribute to the discussion on GitHub Issues.
+

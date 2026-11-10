@@ -44,7 +44,7 @@ Instead of running a migration directly against your active database file, LiteM
            ▼
      [ Verdict ]
      ├── PASSED ──► Optional Safe Promotion (Atomic Backup + CAS Check)
-     └── BLOCKED ─► Shadow discarded. Source database 100% untouched.
+     └── BLOCKED ─► Shadow discarded. Source database remains untouched.
 ```
 
 ---
@@ -62,10 +62,10 @@ LiteMigrate doesn't just check if SQLite exited cleanly. It audits:
 - **Schema Object Tracking**: Verifies views, triggers, and indexes are preserved.
 
 ### 3. Concurrency-Safe Promotion (Compare-And-Swap)
-When you choose to promote a validated migration (`litemigrate apply --confirm`), LiteMigrate acquires an exclusive writer lease (`BEGIN IMMEDIATE`) and inspects `PRAGMA data_version` and schema cookies. If another process wrote to the database while validation took place, promotion immediately aborts, preventing lost updates.
+When you choose to promote a validated migration (`litemigrate apply --confirm`), LiteMigrate acquires SQLite's write reservation (`BEGIN IMMEDIATE`) and inspects `PRAGMA data_version` and schema cookies. If another process wrote to the database while validation took place, promotion immediately aborts, preventing lost updates.
 
 ### 4. Zero Cloud, Zero Telemetry
-LiteMigrate is 100% local-first. It makes zero network calls and collects zero telemetry. Your schemas and data never leave your local machine.
+LiteMigrate is local-first. The tool itself makes zero network calls and collects zero telemetry. Your schemas and data never leave your local machine.
 
 ---
 

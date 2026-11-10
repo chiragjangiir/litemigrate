@@ -25,9 +25,9 @@ I've been working on an open-source project called **LiteMigrate** to address a 
 
 LiteMigrate is a local-first safety utility that tests migrations in a sandbox before touching your database:
 
-1. **Sub-millisecond shadow cloning**: Uses filesystem copy-on-write reflinks (APFS on macOS, FICLONE on Linux) or the SQLite Online Backup API to create an isolated sandbox in < 1 ms.
+1. **Fast shadow cloning**: Uses filesystem copy-on-write reflinks (APFS on macOS, FICLONE on Linux) to create an isolated sandbox in < 1 ms on supported filesystems, with transactional fallback to the SQLite Online Backup API.
 2. **Invariant validation**: Runs the migration on the shadow copy, checking schema diffs, streaming row fingerprints, foreign keys (`PRAGMA foreign_key_check`), and page integrity (`PRAGMA integrity_check`).
-3. **Safe promotion**: When applying, it creates a timestamped pre-promotion backup (`.bak`), acquires an exclusive writer lock (`BEGIN IMMEDIATE`), verifies `PRAGMA data_version` to catch concurrent writes, and applies the migration.
+3. **Safe promotion**: When applying, it creates a timestamped pre-promotion backup (`.bak`), acquires SQLite write reservation (`BEGIN IMMEDIATE`), verifies `PRAGMA data_version` and schema cookies to catch concurrent writes, and applies the migration.
 
 We just published our first experimental Alpha release (`v0.1.0-alpha.1`).
 
@@ -88,13 +88,13 @@ Why we built it:
 Most migration tools only check whether SQL executes without syntax errors. In SQLite, a flawed table rebuild or cascade delete can execute with exit code 0 while silently deleting child records or truncating data.
 
 How it works:
-- Clones your SQLite database using copy-on-write reflinks (APFS clonefile or Linux FICLONE) in under 1 ms.
+- Clones your SQLite database using copy-on-write reflinks (APFS clonefile or Linux FICLONE) in under 1 ms on supported filesystems (with fallback to SQLite Online Backup API).
 - Executes migration SQL strictly inside the shadow copy.
 - Audits schema diffs, row fingerprints, foreign keys (`PRAGMA foreign_key_check`), and page integrity (`PRAGMA integrity_check`).
-- On `apply`, acquires an exclusive writer lock (`BEGIN IMMEDIATE`), verifies `PRAGMA data_version` hasn't changed (Compare-And-Swap), creates a pre-promotion backup, and commits changes.
+- On `apply`, acquires SQLite's write reservation (`BEGIN IMMEDIATE`), verifies `PRAGMA data_version` and schema cookies haven't changed (Compare-And-Swap), creates a pre-promotion backup, and commits changes.
 - Generates a machine-readable JSON audit report suitable for CI/CD gates.
 
-We've published `v0.1.0-alpha.1` as an experimental Alpha. It is 100% local-first: zero cloud dependencies, zero telemetry, and zero data uploads.
+We've published `v0.1.0-alpha.1` as an experimental Alpha. It is local-first: zero cloud dependencies, zero telemetry, and zero data uploads.
 
 Repo: https://github.com/chiragjangiir/litemigrate
 Docs: https://github.com/chiragjangiir/litemigrate/blob/main/README.md

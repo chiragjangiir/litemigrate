@@ -38,9 +38,9 @@ This document contains a tailored draft post for **r/Python**, adhering to the s
 In SQLite, running migrations directly against a live file is risky. Unlike Postgres or MySQL, SQLite has limited `ALTER TABLE` capabilities and often requires the 12-step table rebuild procedure (creating a temporary table, copying rows via `INSERT INTO ... SELECT`, dropping the original table, and renaming). A single omitted column or an unintended `ON DELETE CASCADE` action will execute with exit code 0 while silently truncating data or wiping related tables.
 
 LiteMigrate solves this by enforcing a **shadow verification workflow**:
-1. **Sub-millisecond cloning**: Uses OS-level copy-on-write reflinks (APFS `clonefile` on macOS, `ioctl(FICLONE)` on Linux) or the SQLite Online Backup API to clone an active database in under 1 ms without duplicating disk blocks.
+1. **Fast shadow cloning**: Uses OS-level copy-on-write reflinks (APFS `clonefile` on macOS, `ioctl(FICLONE)` on Linux) to clone an active database in under 1 ms on supported filesystems without duplicating disk blocks, with transactional fallback to the SQLite Online Backup API.
 2. **Multi-invariant audit**: Executes the migration SQL strictly inside the shadow copy, verifying `PRAGMA foreign_key_check`, `PRAGMA integrity_check`, schema diffs, and streaming row fingerprints (with IEEE-754 signed zero float discrimination and rowid aliasing safety).
-3. **Safe promotion**: When running `litemigrate apply --confirm`, it acquires an exclusive writer lock (`BEGIN IMMEDIATE`), verifies `PRAGMA data_version` hasn't changed concurrently (Compare-And-Swap), creates a pre-promotion backup file (`.bak`), and commits changes.
+3. **Safe promotion**: When running `litemigrate apply --confirm`, it acquires SQLite's write reservation (`BEGIN IMMEDIATE`), verifies `PRAGMA data_version` and schema cookies haven't changed concurrently (Compare-And-Swap), creates a pre-promotion backup file (`.bak`), and commits changes.
 
 ---
 
@@ -94,7 +94,7 @@ litemigrate apply --db test.db --migration add_age.sql --confirm
 ### Current Status & Feedback Request
 
 LiteMigrate is currently an **experimental Alpha (`v0.1.0-alpha.1`)**.
-- It is 100% local-first: zero telemetry, zero cloud services, zero external network calls.
+- It is local-first: zero telemetry, zero cloud services, and the library itself makes zero external network calls.
 - It is tested against Python 3.9, 3.10, 3.11, and 3.12 across macOS and Ubuntu Linux (80 automated tests passing in CI).
 - We have not published to PyPI yet (installing via the GitHub Release wheel is the supported path for Alpha testers).
 
@@ -106,3 +106,4 @@ LiteMigrate is currently an **experimental Alpha (`v0.1.0-alpha.1`)**.
 
 I'd love feedback from the Python community on CLI ergonomics, failure modes, and compatibility across Linux filesystems!
 ```
+

@@ -110,7 +110,7 @@ To verify that a migration satisfies essential database invariants before touchi
 | **Physical Page Integrity** | Automated `PRAGMA integrity_check;` on the migrated database. |
 | **Schema Object Continuity** | Snapshot comparison of all views, triggers, and indexes. |
 | **No Concurrent Lost Updates** | Atomic Compare-And-Swap (CAS) verification via `PRAGMA data_version` under `BEGIN IMMEDIATE`. |
-| **Isolated Execution** | Execution takes place on an isolated copy-on-write shadow copy; source database remains 100% untouched until promotion. |
+| **Isolated Execution** | Execution takes place on an isolated copy-on-write shadow copy; source database remains untouched until promotion. |
 
 ---
 

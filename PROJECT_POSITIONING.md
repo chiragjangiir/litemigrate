@@ -76,14 +76,14 @@ In SQLite, this question is dangerously insufficient:
 
 ## 5. Key Technical Pillars
 
-1. **Local-First & Zero-Cloud**: 100% offline. Zero telemetry, zero external cloud dependencies, zero database uploads. Your schemas and rows never leave your local machine.
-2. **Sub-Millisecond Shadow Cloning**: Uses copy-on-write filesystem reflinks (APFS clonefile on macOS, FICLONE on Linux) or the SQLite Online Backup API. Creating an isolated sandbox takes < 1 ms on supported filesystems.
+1. **Local-First Architecture**: 100% offline. LiteMigrate itself makes zero network calls, has zero telemetry, and requires no external cloud dependencies or database uploads. Your schemas and rows never leave your local machine.
+2. **Fast Shadow Sandboxing**: Uses copy-on-write filesystem reflinks (APFS clonefile on macOS, FICLONE on Linux) to create an isolated sandbox in under 1 ms on supported filesystems, with transactional fallback to the SQLite Online Backup API.
 3. **Multi-Invariant Audit**:
    - Schema snapshot comparison (detects dropped tables, altered columns, lost indexes, missing triggers).
    - Streaming row fingerprinting (verifies existing data was not silently modified or lost).
    - Foreign key constraint validation (`PRAGMA foreign_key_check`).
    - SQLite page-level integrity (`PRAGMA integrity_check`).
-4. **Concurrency-Safe Promotion (CAS)**: Before applying validated changes to the live database, LiteMigrate verifies `PRAGMA data_version` and schema cookies under an exclusive writer lock (`BEGIN IMMEDIATE`). If concurrent writes occurred, promotion immediately aborts without touching data.
+4. **Concurrency-Safe Promotion (CAS)**: Before applying validated changes to the live database, LiteMigrate verifies `PRAGMA data_version` and schema cookies under SQLite's write reservation (`BEGIN IMMEDIATE`). If concurrent SQLite writes occurred, promotion immediately aborts without touching data.
 5. **Conservative Policy Enforcement**: By default, no table drop, row truncation, or schema destruction is permitted. Destructive changes require an explicit, auditable `policy.json`.
 
 ---
@@ -93,7 +93,7 @@ In SQLite, this question is dangerously insufficient:
 | Feature / Guarantee | Raw SQL / CLI (`sqlite3 db < mig.sql`) | Migration Frameworks (Alembic / Django) | Staging Environment Restore | **LiteMigrate** |
 |:---|:---:|:---:|:---:|:---:|
 | **Isolated Execution Before Live Write** | ❌ No | ❌ No | ⚠️ Partial (slow, complex) | ✅ **Yes (Isolated Shadow Copy)** |
-| **Sub-Millisecond Sandbox Creation** | ❌ N/A | ❌ N/A | ❌ Minutes to hours | ✅ **< 1ms via CoW Reflinks** |
+| **Sub-Millisecond Reflink Sandbox** | ❌ N/A | ❌ N/A | ❌ Minutes to hours | ✅ **< 1ms via CoW Reflinks** |
 | **Foreign Key Constraint Verification** | ❌ Only if enabled | ❌ Only if enabled | ⚠️ Manual query | ✅ **Automated `foreign_key_check`** |
 | **Physical Integrity Verification** | ❌ No | ❌ No | ⚠️ Manual query | ✅ **Automated `integrity_check`** |
 | **Silent Row-Loss Detection** | ❌ No | ❌ No | ❌ No | ✅ **Automated Row Fingerprinting** |
