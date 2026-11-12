@@ -179,8 +179,7 @@ def handle_inspect(args: argparse.Namespace) -> int:
         print(f"Security Error: {exc}", file=sys.stderr)
         return 3
     except Exception as exc:
-        print(f"Error during inspection: {exc}", file=sys.stderr)
-        return 5
+        return _report_cli_error(exc, "Error during inspection")
 
     if args.json:
         print(report.to_json())

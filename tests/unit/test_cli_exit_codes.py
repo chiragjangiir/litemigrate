@@ -43,3 +43,13 @@ class TestCliEngineErrorCodes(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCliInspectErrorCodes(unittest.TestCase):
+    def test_inspect_security_error_exits_3(self) -> None:
+        stderr = io.StringIO()
+        with mock.patch.object(cli.LiteMigrateEngine, "inspect", side_effect=SecurityError("symlink")):
+            with redirect_stderr(stderr):
+                code = cli.main(["inspect", "--db", "app.db"])
+        self.assertEqual(code, 3)
+        self.assertIn("Security Error: symlink", stderr.getvalue())
