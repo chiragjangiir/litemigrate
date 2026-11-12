@@ -9,6 +9,7 @@ from pathlib import Path
 
 from litemigrate import __version__
 from litemigrate.engine import LiteMigrateEngine
+from litemigrate.exceptions import ConcurrencyConflictError, LockTimeoutError, SecurityError
 from litemigrate.models import AuditReport, CloneStrategy, ValidationVerdict
 from litemigrate.policy import MigrationPolicy
 
@@ -206,6 +207,19 @@ def handle_inspect(args: argparse.Namespace) -> int:
     return 0
 
 
+# _report_cli_error prints an engine failure and returns the documented exit
+# code (README "Exit Codes"): 3 for security, 2 for concurrency/lock, 5 otherwise.
+def _report_cli_error(exc: Exception, prefix: str) -> int:
+    if isinstance(exc, (PermissionError, SecurityError)):
+        print(f"Security Error: {exc}", file=sys.stderr)
+        return 3
+    if isinstance(exc, (LockTimeoutError, ConcurrencyConflictError)):
+        print(f"Concurrency Error: {exc}", file=sys.stderr)
+        return 2
+    print(f"{prefix}: {exc}", file=sys.stderr)
+    return 5
+
+
 def handle_validate(args: argparse.Namespace) -> int:
     policy = MigrationPolicy.from_file(args.policy) if args.policy else MigrationPolicy()
     strategy = CloneStrategy(args.strategy)
@@ -226,8 +240,7 @@ def handle_validate(args: argparse.Namespace) -> int:
         print(f"Security Error: {exc}", file=sys.stderr)
         return 3
     except Exception as exc:
-        print(f"Unexpected error: {exc}", file=sys.stderr)
-        return 5
+        return _report_cli_error(exc, "Unexpected error")
 
     if args.output:
         with open(args.output, "w", encoding="utf-8") as f:
@@ -283,8 +296,7 @@ def handle_apply(args: argparse.Namespace) -> int:
         print(f"Security Error: {exc}", file=sys.stderr)
         return 3
     except Exception as exc:
-        print(f"Unexpected error: {exc}", file=sys.stderr)
-        return 5
+        return _report_cli_error(exc, "Unexpected error")
 
     if args.output:
         with open(args.output, "w", encoding="utf-8") as f:
