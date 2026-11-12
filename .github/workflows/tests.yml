@@ -13,7 +13,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12"]
+        # 3.9 is still supported, but ubuntu-latest no longer provides it; test
+        # the minimum version on the newest runner image that still has it.
+        include:
+          - os: ubuntu-22.04
+            python-version: "3.9"
 
     steps:
       - uses: actions/checkout@v4
