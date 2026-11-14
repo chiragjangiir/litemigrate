@@ -269,3 +269,24 @@ def cleanup_db_artifacts(path: Path) -> None:
                 sidecar.unlink()
             except OSError:
                 pass
+
+
+def execute_wal_checkpoint(conn: sqlite3.Connection, mode: str = "PASSIVE") -> tuple[int, int, int]:
+    """Execute a WAL checkpoint on the given connection with error handling.
+
+    Args:
+        conn: Open SQLite connection.
+        mode: Checkpoint mode ('PASSIVE', 'FULL', 'RESTART', or 'TRUNCATE').
+
+    Returns:
+        tuple of (busy, log_frames, checkpointed_frames).
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute(f"PRAGMA wal_checkpoint({mode});")
+        row = cursor.fetchone()
+        if row:
+            return int(row[0]), int(row[1]), int(row[2])
+        return 0, 0, 0
+    finally:
+        cursor.close()
