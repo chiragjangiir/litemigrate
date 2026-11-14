@@ -100,6 +100,11 @@ Safety Notes:
         action="store_true",
         help="Print the audit report to stdout in JSON format.",
     )
+    val_parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="Print a condensed tabular summary of validation checks.",
+    )
 
     # 3. apply
     apply_parser = subparsers.add_parser(
@@ -247,6 +252,13 @@ def handle_validate(args: argparse.Namespace) -> int:
 
     if args.json:
         print(report.to_json())
+    elif getattr(args, "summary", False):
+        print("── LiteMigrate Execution Summary ──")
+        print(f"  Verdict:       {report.verdict.value}")
+        print(f"  Duration:      {report.total_elapsed_ms:.2f} ms")
+        print(f"  FK Violations: {len(report.foreign_key_violations)}")
+        print(f"  Integrity:     {'PASS' if report.integrity_check_passed else 'FAIL'}")
+        print("───────────────────────────────────")
     else:
         _print_human_report(report, mode="VALIDATE")
 
