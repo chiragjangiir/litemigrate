@@ -1,8 +1,6 @@
 -- Migration: Rebuild table with foreign key constraints and cascade actions
 -- Demonstrates the canonical 12-step SQLite table rebuild pattern
 
-BEGIN TRANSACTION;
-
 -- 1. Create new table with updated constraints and default values
 CREATE TABLE orders_new (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,5 +25,3 @@ ALTER TABLE orders_new RENAME TO orders;
 -- 5. Recreate indexes
 CREATE INDEX idx_orders_user_id ON orders(user_id);
 CREATE INDEX idx_orders_status ON orders(status);
-
-COMMIT;
