@@ -34,6 +34,11 @@ Safety Notes:
 """,
     )
     parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress banner and non-essential logs.",
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"litemigrate {__version__}",
