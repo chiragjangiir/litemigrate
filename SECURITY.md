@@ -31,3 +31,8 @@ If you discover a security vulnerability in LiteMigrate:
 2. Send a confidential report to `184008125+chiragjangiir@users.noreply.github.com`.
 3. Provide a reproduction script or minimal adversarial test demonstrating the issue.
 4. We will acknowledge receipt within 48 hours and work with you on a coordinated disclosure timeline.
+
+### Responsible Disclosure Protocol
+- Vulnerabilities should be reported via private GitHub Security Advisory or emailed directly to security maintainers.
+- All reports will receive an initial triage response within 48 hours.
+- Fixes will be prepared in private security forks before public disclosure.
