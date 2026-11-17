@@ -360,3 +360,5 @@ class LiteMigrateEngine:
         if isinstance(migration, Sequence):
             return "\n".join(migration)
         raise UnsupportedMigrationTypeError(f"Cannot resolve migration SQL from type {type(migration)}")
+
+from litemigrate.batch_exec import execute_script_with_progress
