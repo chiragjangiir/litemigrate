@@ -2,12 +2,12 @@ import re
 from typing import Dict
 
 class TableCollateParser:
-    COLLATE_REGEX = re.compile(r"(\w+)\s+[^,\)]*COLLATE\s+(\w+)", re.IGNORECASE)
-
     @classmethod
     def parse_collations(cls, ddl: str) -> Dict[str, str]:
         res = {}
-        for match in cls.COLLATE_REGEX.finditer(ddl):
+        # match: identifier followed by type, then COLLATE <sequence>
+        pattern = re.compile(r"(?:[(,]\s*|\n\s*)([a-zA-Z_]\w*)\s+[^,()]*?\bCOLLATE\s+([a-zA-Z_]\w*)", re.IGNORECASE)
+        for match in pattern.finditer(ddl):
             col, collation = match.groups()
             res[col] = collation.upper()
         return res
